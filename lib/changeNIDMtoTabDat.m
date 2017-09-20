@@ -43,19 +43,24 @@ function NTabDat = changeNIDMtoTabDat(graph, typemap, ids, exObj)
         if any(ismember(soft_type, 'http://scicrunch.org/resolver/SCR_002823'))...
                 || any(ismember(soft_type, 'src_FSL')) || any(ismember(soft_type, 'scr_FSL'))
             software = 'FSL';
+            parametric = true;
         elseif any(ismember(soft_type, 'http://scicrunch.org/resolver/SCR_007037'))...
                 || any(ismember(soft_type, 'src_SPM')) || any(ismember(soft_type, 'src_SPM'))
             software = 'SPM';
+            parametric = true;
         % The two options here are assuming analysis software and export
         % software are the same (ideally we should instead explicitely
         % check for the analysis software)
         elseif any(ismember(soft_type, 'nidm_spm_results'))
             software = 'SPM';
+            parametric = true;
         elseif any(ismember(soft_type, 'nidm_nidmfsl'))
             software = 'FSL';
+            parametric = true;
         else
+            parametric = false;
             disp(soft_type);
-            error('nidm:UnrecognisedSoftware', 'Unrecognised software')
+            warning('nidm:UnrecognisedSoftware', 'Unknown software')
         end
     end 
     
@@ -262,12 +267,16 @@ function NTabDat = changeNIDMtoTabDat(graph, typemap, ids, exObj)
     FWHMUnits = strrep(strrep(strrep(strrep(get_value(searchSpace.('nidm_voxelUnits')), '\"', ''), '[', ''), ']', ''), ',', '');
     
     ftrTemp{rowCount, 1} = ['FWHM = %3.1f %3.1f %3.1f ', FWHMUnits '; %3.1f %3.1f %3.1f {voxels}'];
-    
-    %Store the FWHM in units and voxels
-    unitsFWHM = str2num(get_value(searchLinkedToCoord.('nidm_noiseFWHMInUnits')));
-    voxelsFWHM = str2num(get_value(searchLinkedToCoord.('nidm_noiseFWHMInVoxels')));
-    
-    ftrTemp{rowCount,2} = [unitsFWHM, voxelsFWHM];
+
+    if parametric
+        %Store the FWHM in units and voxels
+        unitsFWHM = str2num(get_value(searchLinkedToCoord.('nidm_noiseFWHMInUnits')));
+        voxelsFWHM = str2num(get_value(searchLinkedToCoord.('nidm_noiseFWHMInVoxels')));
+        
+        ftrTemp{rowCount,2} = [unitsFWHM, voxelsFWHM];
+    else
+        ftrTemp{rowCount,2} = [NaN, NaN];
+    end
     
     %Volume
     
@@ -278,9 +287,13 @@ function NTabDat = changeNIDMtoTabDat(graph, typemap, ids, exObj)
         volumeUnits = str2double(volumeUnits);
     end
     
-    volumeResels = get_value(searchLinkedToCoord.('nidm_searchVolumeInResels'));
-    if(ischar(volumeResels))
-        volumeResels = str2double(volumeResels);
+    if parametric
+        volumeResels = get_value(searchLinkedToCoord.('nidm_searchVolumeInResels'));
+        if(ischar(volumeResels))
+            volumeResels = str2double(volumeResels);
+        end
+    else
+        volumeResels = NaN;
     end
     
     volumeVoxels = get_value(searchLinkedToCoord.('nidm_searchVolumeInVoxels'));
@@ -296,9 +309,13 @@ function NTabDat = changeNIDMtoTabDat(graph, typemap, ids, exObj)
     rowCount = rowCount+1;
     voxelSize = str2num(get_value(searchSpace.('nidm_voxelSize')));
     voxelUnits = strrep(strrep(strrep(strrep(get_value(searchSpace.('nidm_voxelUnits')), '\"', ''), '[', ''), ']', ''), ',', '');
-    reselSize = get_value(searchLinkedToCoord.('nidm_reselSizeInVoxels'));
-    if(ischar(reselSize))
-        reselSize = str2double(reselSize);
+    if parametric
+        reselSize = get_value(searchLinkedToCoord.('nidm_reselSizeInVoxels'));
+        if(ischar(reselSize))
+            reselSize = str2double(reselSize);
+        end
+    else
+        reselSize = NaN;
     end
     
     ftrTemp{rowCount, 1} = ['Voxel size: %3.1f %3.1f %3.1f ', voxelUnits, '; (resel = %0.2f voxels)'];
@@ -434,7 +451,11 @@ function NTabDat = changeNIDMtoTabDat(graph, typemap, ids, exObj)
         
         for i = 1:length(keySet)
             %Fill in the values we know.
-            tableTemp{n, 3} = str2double(get_value(clusters{i}.('nidm_pValueFWER')));
+            if isfield(clusters{i}, 'nidm_pValueFWER')
+                tableTemp{n, 3} = str2double(get_value(clusters{i}.('nidm_pValueFWER')));
+            else
+                tableTemp{n, 3} = NaN;
+            end
             if clustersFDRP
                 tableTemp{n, 4} = str2double(get_value(clusters{i}.('nidm_qValueFDR')));
             else
